@@ -1,0 +1,4 @@
+pyinstaller
+selenium
+pandas
+PyQt5
