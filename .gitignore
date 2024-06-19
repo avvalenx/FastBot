@@ -1,3 +1,5 @@
 /build
 /dist
-"Fast Bot.spec"
+Fast Bot.spec
+/__pycache__
+/env
