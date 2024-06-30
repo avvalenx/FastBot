@@ -2,15 +2,13 @@ import sys
 import os
 
 from PyQt5.QtGui import QPixmap, QIcon
-from PyQt5.QtCore import QSize, Qt, QThread
+from PyQt5.QtCore import QSize, Qt, QThread, QThreadPool
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QFileDialog, QVBoxLayout, QWidget, QHBoxLayout, QLabel, QLineEdit
 
 import fast_backend
 
 # TODO
-# fix threading so that finished signal works correctly
-#     - finished signal not being put for each function run is causing issue
-#     - moving to just 1 function does not matter if you execute multiple functions in the class
+# fast class improvement and implementation of using it needs to be improved
 # format loading screen that counts up per fan done
 # rename things to be more clear
 # add error handling for bad input
@@ -35,6 +33,9 @@ class MainWindow(QMainWindow):
             self.base_path = sys._MEIPASS
         except:
             self.base_path = os.getcwd()
+        
+        # TODO don't hardcode output name
+        self.output_file_name = 'Fast Contacts.xlsx'
 
         self.WINDOW_SIZE = QSize(1000, 600)
         self.WINDOW_TITLE = 'Fast Bot'
@@ -49,9 +50,9 @@ class MainWindow(QMainWindow):
         if os.path.isfile(os.path.join(self.base_path, 'creds.txt')):
             self.show_home_page()
         else:
-            self.show_welcome_page()
+            self.show_login_page()
 
-    def show_welcome_page(self):
+    def show_login_page(self):
         self.setWindowTitle(self.WINDOW_TITLE)
         self.setFixedSize(self.WINDOW_SIZE)
         self.setContentsMargins(0,0,10,10)
@@ -189,38 +190,40 @@ class MainWindow(QMainWindow):
             self.scrape_fast_contacts_button.setEnabled(False)
         
     def scrape_fast_contacts(self):
+        self.scrape_fast_contacts_button.setEnabled(False)
         self.thread = QThread()
-        self.fast = fast_backend.Fast()
-        self.fast.input_path = self.input_path
-        self.fast.output_file_name = 'Fast Contacts.xlsx'
-        self.fast.base_path = self.base_path
-
+        self.fast = fast_backend.Fast(self.input_path, self.base_path, self.output_file_name)
         self.fast.moveToThread(self.thread)
+
         self.thread.started.connect(self.fast.startup)
         self.thread.started.connect(self.fast.import_fans)
         self.thread.started.connect(self.fast.create_driver)
         self.thread.started.connect(self.fast.login)
-        self.thread.started.connect(self.fast.scrape_contacts)
-        self.thread.started.connect(self.fast.export_contacts_to_excel)
-        self.fast.finished.connect(self.thread.quit)
+        self.fast.result.connect(self.fast.scrape_contacts)
+        self.fast.error.connect(self.login_error)
+        self.fast.error.connect(self.fast.deleteLater)
+        self.fast.error.connect(self.thread.quit)
         self.fast.finished.connect(self.fast.deleteLater)
-        self.fast.finished.connect(self.thread.deleteLater)
+        self.fast.finished.connect(lambda: self.scrape_fast_contacts_button.setEnabled(True))
+        self.fast.finished.connect(lambda: self.fast.export_contacts_to_excel())
+        self.fast.finished.connect(self.thread.quit)
         self.fast.progress.connect(self.report_progress)
         self.thread.start()
-
-        self.scrape_fast_contacts_button.setEnabled(False)
-        self.thread.finished.connect(lambda: self.scrape_fast_contacts_button.setEnabled(True))
     
     def report_progress(self, fan_counter):
         self.progress_label.setText(str(fan_counter))
+    
+    def login_error(self):
+        self.error_message = QLabel('Incorrect username or password')
+        self.show_login_page()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     window = MainWindow()
     #window.check_for_login_creds()
-    window.show_home_page()
-    #window.show_welcome_page()
+    #window.show_home_page()
+    window.show_login_page()
     window.show()
 
     app.exec()

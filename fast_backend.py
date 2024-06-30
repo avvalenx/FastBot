@@ -7,11 +7,20 @@ from PyQt5.QtCore import QObject, pyqtSignal
 import pandas as pd
 import sys
 import os
+import time
 
 class Fast(QObject):
-    working = pyqtSignal()
     finished = pyqtSignal()
     progress = pyqtSignal(int)
+    error = pyqtSignal()
+    result = pyqtSignal()
+
+    def __init__(self, input_path, base_path, output_file_name):
+        super(Fast, self).__init__()
+
+        self.input_path = input_path
+        self.base_path = base_path
+        self.output_file_name = output_file_name
 
     def startup(self):
         self.driver_options = Options()
@@ -59,11 +68,12 @@ class Fast(QObject):
 
         # FIXME change this to check for incorrect username or password specifically
         try:
-            search_bar = WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'token-input')))
+            WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'token-input')))
+            self.result.emit()
         except:
             # if search bar is not found we are not logged in and must stop
-            return False
-        return True
+            self.driver.close()
+            self.error.emit()
 
         # Click continue button if password expiration notice occurs
         try:
@@ -129,6 +139,7 @@ class Fast(QObject):
                 self.login()
 
             self.progress.emit(self.fan_counter)
+        self.finished.emit()
 
     def export_contacts_to_excel(self):
         #create pandas dataframe of Name type email and phone
@@ -141,7 +152,7 @@ if __name__ == "__main__":
     fast = Fast()
     fast.base_path = ''
     fast.output_file_name = 'Fast Contacts.xlsx'
-    fast.input_path = 'fast_input.xlsx'
+    fast.input_path = "C:/Users/av037e/OneDrive - AT&T Services, Inc/Desktop/coding/fast_input.xlsx"
     fast.startup()
     fast.import_fans()
     fast.create_driver()
